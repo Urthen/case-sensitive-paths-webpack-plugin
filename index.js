@@ -25,7 +25,6 @@
  */
 
 var path = require('path');
-var fs = require('fs');
 
 function CaseSensitivePathsPlugin(options) {
     this.options = options || {};
@@ -33,80 +32,101 @@ function CaseSensitivePathsPlugin(options) {
 }
 
 CaseSensitivePathsPlugin.prototype.reset = function () {
-    // Keep cache of filesystem contents along path reduce FS operations
     this.pathCache = {};
     this.fsOperations = 0;
-
-    // Prime the cache with the current directory. We have to assume the current casing is correct,
-    // as in certain circumstances people can switch into an incorrectly-cased directory.
-    var currentPath = path.resolve();
-    this.pathCache[currentPath] = this.getFilenamesInDir(currentPath);
+    this.primed = false;
 }
 
-CaseSensitivePathsPlugin.prototype.getFilenamesInDir = function (dir) {
+CaseSensitivePathsPlugin.prototype.getFilenamesInDir = function (dir, callback) {
+    var _that = this
+    var fs = this.compiler.inputFileSystem;
+    this.fsOperations += 1;
+
     if (this.pathCache.hasOwnProperty(dir)) {
-        return this.pathCache[dir];
-    } else {
-        this.fsOperations += 1;
-        if (this.options.debug) {
-            console.log('[CaseSensitivePathsPlugin] Reading directory', dir);
-        }
-        try {
-            return fs.readdirSync(dir).map(function(f) { return f.normalize ? f.normalize('NFC') : f; });
-        } catch (err) {
-            if (this.options.debug) {
+        return callback(this.pathCache[dir]);
+    }
+    if (this.options.debug) {
+        console.log('[CaseSensitivePathsPlugin] Reading directory', dir);
+    }
+
+    fs.readdir(dir, function(err, files) {
+        if (err) {
+            if (_that.options.debug) {
                 console.log('[CaseSensitivePathsPlugin] Failed to read directory', dir, err);
             }
-            return [];
+
+            return callback([]);
         }
-    }
+
+        callback(files.map(function(f) {
+            return f.normalize ? f.normalize('NFC') : f;
+        }));
+    })
 };
 
 // This function based on code found at http://stackoverflow.com/questions/27367261/check-if-file-exists-case-sensitive
 // By Patrick McElhaney (No license indicated - Stack Overflow Answer)
 // This version will return with the real name of any incorrectly-cased portion of the path, null otherwise.
-CaseSensitivePathsPlugin.prototype.fileExistsWithCaseSync = function (filepath) {
+CaseSensitivePathsPlugin.prototype.fileExistsWithCase = function (filepath, callback) {
     // Split filepath into current filename (or directory name) and parent directory tree.
+    var _this = this;
     var dir = path.dirname(filepath);
     var filename = path.basename(filepath);
     var parsedPath = path.parse(dir);
 
     // If we are at the root, or have found a path we already know is good, return.
-    if (parsedPath.dir === parsedPath.root || dir === '.' || this.pathCache.hasOwnProperty(filepath)) return;
+    if (parsedPath.dir === parsedPath.root || dir === '.' || _this.pathCache.hasOwnProperty(filepath)) {
+        return callback();
+    }
 
     // Check all filenames in the current dir against current filename to ensure one of them matches.
     // Read from the cache if available, from FS if not.
-    var filenames = this.getFilenamesInDir(dir);
+    _this.getFilenamesInDir(dir, function (filenames) {
+          // If the exact match does not exist, attempt to find the correct filename.
+        if (filenames.indexOf(filename) === - 1) {
+            // Fallback value, just in case.
+            var correctFilename = '- File does not exist.';
 
-    // If the exact match does not exist, attempt to find the correct filename.
-    if (filenames.indexOf(filename) === - 1) {
-        // Fallback value, just in case.
-        var correctFilename = '- File does not exist.';
-
-        for (var i = 0; i < filenames.length; i++) {
-            if (filenames[i].toLowerCase() === filename.toLowerCase()) {
-                correctFilename = '`' + filenames[i] + '`.';
-                break;
+            for (var i = 0; i < filenames.length; i++) {
+                if (filenames[i].toLowerCase() === filename.toLowerCase()) {
+                    correctFilename = '`' + filenames[i] + '`.';
+                    break;
+                }
             }
+            return callback(correctFilename);
         }
-        return correctFilename;
-    }
 
-    // If exact match exists, recurse through directory tree until root.
-    var recurse = this.fileExistsWithCaseSync(dir);
+        // If exact match exists, recurse through directory tree until root.
+        _this.fileExistsWithCase(dir, function (recurse) {
+          // If found an error elsewhere, return that correct filename
+          // Don't bother caching - we're about to error out anyway.
+          if (!recurse) {
+            _this.pathCache[dir] = filenames;
+          }
 
-    // If found an error elsewhere, return that correct filename
-    // Don't bother caching - we're about to error out anyway.
-    if (recurse) {
-        return recurse;
-    }
+          callback(recurse)
+        });
+    });
+}
 
-    // If no error elsewhere, this is known good - store in the cache.
-    this.pathCache[dir] = filenames;
+CaseSensitivePathsPlugin.prototype.primeCache = function (callback) {
+    if (this.primed) return callback();
+
+    var _this = this;
+    // Prime the cache with the current directory. We have to assume the current casing is correct,
+    // as in certain circumstances people can switch into an incorrectly-cased directory.
+    var currentPath = path.resolve();
+    _this.getFilenamesInDir(currentPath, function (files) {
+        _this.pathCache[currentPath] = files;
+        _this.primed = true;
+        callback()
+    });
 }
 
 CaseSensitivePathsPlugin.prototype.apply = function(compiler) {
     var _this = this;
+
+    this.compiler = compiler;
 
     compiler.plugin('done', function() {
         if (_this.options.debug) {
@@ -117,18 +137,19 @@ CaseSensitivePathsPlugin.prototype.apply = function(compiler) {
 
     compiler.plugin('normal-module-factory', function(nmf) {
         nmf.plugin('after-resolve', function(data, done) {
+            _this.primeCache(function () {
+                // Trim ? off, since some loaders add that to the resource they're attemping to load
+                var pathName = data.resource.split('?')[0];
+                pathName =  pathName.normalize ? pathName.normalize('NFC') : pathName;
 
-            // Trim ? off, since some loaders add that to the resource they're attemping to load
-            var pathName = data.resource.split('?')[0];
-            pathName =  pathName.normalize ? pathName.normalize('NFC') : pathName;
-
-            var realName = _this.fileExistsWithCaseSync(pathName);
-
-            if (realName) {
-                done(new Error('[CaseSensitivePathsPlugin] `' + pathName + '` does not match the corresponding path on disk ' + realName));
-            } else {
-                done(null, data);
-            }
+                _this.fileExistsWithCase(pathName, function(realName) {
+                  if (realName) {
+                      done(new Error('[CaseSensitivePathsPlugin] `' + pathName + '` does not match the corresponding path on disk ' + realName));
+                  } else {
+                      done(null, data);
+                  }
+                });
+            });
         });
     });
 };

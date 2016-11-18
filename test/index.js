@@ -58,6 +58,7 @@ describe("CaseSensitivePathsPlugin", function() {
 
         var watchCount = 0;
         var watcher = compiler.watch({ poll: true }, function(err, stats) {
+
             if (err) done(err);
             watchCount++;
 
@@ -85,6 +86,39 @@ describe("CaseSensitivePathsPlugin", function() {
             }
 
             throw Error("Shouldn't be here...");
+        });
+    });
+
+    it("should work with alternate fileSystems", function(done) {
+        var called = false;
+
+        webpack({
+            context: path.join(__dirname, "fixtures", "wrong-case"),
+            target: "node",
+            output: {
+                path: path.join(__dirname, "js"),
+                filename: "result.js",
+            },
+            entry: "./entry",
+            plugins: [
+                new CaseSensitivePathsPlugin(),
+                {
+                    apply: function(compiler) {
+                        var readdir;
+                        compiler.plugin('compile', function() {
+                            readdir = readdir || compiler.inputFileSystem.readdir;
+                            compiler.inputFileSystem.readdir = function(p, cb) {
+                                called = true;
+                                fs.readdir(p, cb);
+                            }
+                        })
+                    }
+                }
+            ]
+        }, function(err, stats) {
+            if (err) done(err);
+            assert(called, 'should use compiler fs')
+            done();
         });
     });
 });
