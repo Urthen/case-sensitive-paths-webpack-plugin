@@ -1,5 +1,7 @@
 "use strict";
 
+const isPlatformCaseInsensitive = /^[win|darwin]/.test(process.platform);
+
 let assert = require("assert");
 let fs = require("fs-extra");
 let path = require("path");
@@ -25,26 +27,29 @@ function webpackCompilerAtDir(dir, otherOpts) {
 
 describe("CaseSensitivePathsPlugin", function() {
 
-    it("should compile and warn on wrong filename case", function(done) {
+    // This test will fail on case sensitive platforms, that's the whole point of this module.
+    // To ensure the rest of the library still works, disable *only this test.*
+    if (isPlatformCaseInsensitive) {
+      it("should compile and warn on wrong filename case", function (done) {
         let compiler = webpackCompilerAtDir('wrong-case');
 
-        compiler.run(function(err, stats) {
-            if (err) done(err);
-            assert(stats.hasErrors());
-            assert.equal(stats.hasWarnings(), false);
-            let jsonStats = stats.toJson();
-            assert.equal(jsonStats.errors.length, 1);
+        compiler.run(function (err, stats) {
+          if (err) done(err);
+          assert(stats.hasErrors());
+          assert.equal(stats.hasWarnings(), false);
+          let jsonStats = stats.toJson();
+          assert.equal(jsonStats.errors.length, 1);
 
-            let error = jsonStats.errors[0];
-            // check that the plugin produces the correct output
-            console.log(`Error:\n${error}\n<<<`);
-            assert(error.indexOf('[CaseSensitivePathsPlugin]') > -1);
-            assert(error.indexOf('ExistingTestFile.js') > -1); // wrong file require
-            assert(error.indexOf('existingTestFile.js') > -1); // actual file name
+          let error = jsonStats.errors[0];
+          // check that the plugin produces the correct output
+          assert(error.indexOf('[CaseSensitivePathsPlugin]') > -1);
+          assert(error.indexOf('ExistingTestFile.js') > -1); // wrong file require
+          assert(error.indexOf('existingTestFile.js') > -1); // actual file name
 
-            done();
+          done();
         });
-    });
+      });
+    }
 
     // For future reference: This test is somewhat of a race condition, these values seem to work well.
     // If this test fails, sometimes just re-running will make it succeed.
