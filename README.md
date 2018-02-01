@@ -6,6 +6,7 @@ Case Sensitive Paths - Webpack Plugin
 [![npm version](https://badge.fury.io/js/case-sensitive-paths-webpack-plugin.svg)](https://badge.fury.io/js/case-sensitive-paths-webpack-plugin)
 [![npm downloads](https://img.shields.io/npm/dw/case-sensitive-paths-webpack-plugin.svg)](https://www.npmjs.com/package/case-sensitive-paths-webpack-plugin)
 ![bananas: ripe](https://img.shields.io/badge/bananas-ripe-yellow.svg)
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2FUrthen%2Fcase-sensitive-paths-webpack-plugin.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2FUrthen%2Fcase-sensitive-paths-webpack-plugin?ref=badge_shield)
 
 This Webpack plugin enforces the entire path of all required modules match the exact case of the actual path on disk.
 Using this plugin helps alleviate cases where developers working on OSX, which does not follow strict path case sensitivity,
@@ -60,3 +61,7 @@ Thanks & Credit
 * [Jonathan Kim](https://github.com/jkimbo) and [Dan Abramov](https://github.com/gaearon) who investigated, fixed, and added some tests for a crashing bug.
 * [Jason Quense](https://github.com/jquense) who switched it to properly use the webpack-provided fs object.
 * [Cesare Soldini](https://github.com/caesarsol) who added a test
+
+
+## License
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2FUrthen%2Fcase-sensitive-paths-webpack-plugin.svg?type=large)](https://app.fossa.io/projects/git%2Bgithub.com%2FUrthen%2Fcase-sensitive-paths-webpack-plugin?ref=badge_large)
