@@ -37,6 +37,7 @@ describe("CaseSensitivePathsPlugin", function() {
 
             let error = jsonStats.errors[0];
             // check that the plugin produces the correct output
+            console.log(`Error:\n${error}\n<<<`);
             assert(error.indexOf('[CaseSensitivePathsPlugin]') > -1);
             assert(error.indexOf('ExistingTestFile.js') > -1); // wrong file require
             assert(error.indexOf('existingTestFile.js') > -1); // actual file name
