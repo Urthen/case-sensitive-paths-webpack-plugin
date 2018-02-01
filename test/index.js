@@ -67,6 +67,13 @@ describe("CaseSensitivePathsPlugin", function() {
         let jsonStats;
         let watcher = compiler.watch({poll: 500, aggregateTimeout: 500}, function(err, stats) {
 
+            // We already detected the change and marked ourselves done, don't continue.
+            // Short circuits some intermittent test errors where this would be called again after
+            // test completion.
+            if (resolved) {
+                return;
+            }
+
             if (err) done(err);
             watchCount++;
 
