@@ -128,40 +128,49 @@ CaseSensitivePathsPlugin.prototype.primeCache = function (callback) {
   });
 };
 
-CaseSensitivePathsPlugin.prototype.apply = function (compiler) {
-  const that = this;
+CaseSensitivePathsPlugin.prototype.done = function () {
+  if (this.options.debug) {
+    console.log('[CaseSensitivePathsPlugin] Total filesystem reads:', this.fsOperations);
+  }
+  this.reset();
+};
 
-  this.compiler = compiler;
+CaseSensitivePathsPlugin.prototype.afterResolve = function (data, done) {
+  this.primeCache(() => {
+            // Trim ? off, since some loaders add that to the resource they're attemping to load
+    let pathName = data.resource.split('?')[0];
+    pathName = pathName.normalize ? pathName.normalize('NFC') : pathName;
 
-  compiler.plugin('done', () => {
-    if (that.options.debug) {
-      console.log('[CaseSensitivePathsPlugin] Total filesystem reads:', that.fsOperations);
-    }
-    that.reset();
-  });
-
-  compiler.plugin('normal-module-factory', (nmf) => {
-    nmf.plugin('after-resolve', (data, done) => {
-      that.primeCache(() => {
-                // Trim ? off, since some loaders add that to the resource they're attemping to load
-        let pathName = data.resource.split('?')[0];
-        pathName = pathName.normalize ? pathName.normalize('NFC') : pathName;
-
-        that.fileExistsWithCase(pathName, (realName) => {
-          if (realName) {
-            if (realName === '!nonexistent') {
-                // If file does not exist, let Webpack show a more appropriate error.
-              done(null, data);
-            } else {
-              done(new Error(`[CaseSensitivePathsPlugin] \`${pathName}\` does not match the corresponding path on disk ${realName}`));
-            }
-          } else {
-            done(null, data);
-          }
-        });
-      });
+    this.fileExistsWithCase(pathName, (realName) => {
+      if (realName) {
+        if (realName === '!nonexistent') {
+            // If file does not exist, let Webpack show a more appropriate error.
+          done(null, data);
+        } else {
+          done(new Error(`[CaseSensitivePathsPlugin] \`${pathName}\` does not match the corresponding path on disk ${realName}`));
+        }
+      } else {
+        done(null, data);
+      }
     });
   });
+};
+
+CaseSensitivePathsPlugin.prototype.apply = function (compiler) {
+  this.compiler = compiler;
+
+  if (compiler.hooks) {
+    const plugin = { name: 'CaseSensitivePathsPlugin' };
+    compiler.hooks.done.tap(plugin, this.done.bind(this));
+    compiler.hooks.normalModuleFactory.tap(plugin, (nmf) => {
+      nmf.hooks.afterResolve.tapAsync(plugin, this.afterResolve.bind(this));
+    });
+  } else {
+    compiler.plugin('done', this.done.bind(this));
+    compiler.plugin('normal-module-factory', (nmf) => {
+      nmf.plugin('after-resolve', this.afterResolve.bind(this));
+    });
+  }
 };
 
 module.exports = CaseSensitivePathsPlugin;
