@@ -1,4 +1,7 @@
-"use strict";
+/* eslint-disable strict */
+
+'use strict';
+
 /* This plugin based on https://gist.github.com/Morhaus/333579c2a5b4db644bd5
 
  Original license:
@@ -68,24 +71,24 @@ CaseSensitivePathsPlugin.prototype.getFilenamesInDir = function (dir, callback) 
 // By Patrick McElhaney (No license indicated - Stack Overflow Answer)
 // This version will return with the real name of any incorrectly-cased portion of the path, null otherwise.
 CaseSensitivePathsPlugin.prototype.fileExistsWithCase = function (filepath, callback) {
-    // Split filepath into current filename (or directory name) and parent directory tree.
+  // Split filepath into current filename (or directory name) and parent directory tree.
   const that = this;
   const dir = path.dirname(filepath);
   const filename = path.basename(filepath);
   const parsedPath = path.parse(dir);
 
-    // If we are at the root, or have found a path we already know is good, return.
+  // If we are at the root, or have found a path we already know is good, return.
   if (parsedPath.dir === parsedPath.root || dir === '.' || Object.prototype.hasOwnProperty.call(that.pathCache, filepath)) {
     callback();
     return;
   }
 
-    // Check all filenames in the current dir against current filename to ensure one of them matches.
-    // Read from the cache if available, from FS if not.
+  // Check all filenames in the current dir against current filename to ensure one of them matches.
+  // Read from the cache if available, from FS if not.
   that.getFilenamesInDir(dir, (filenames) => {
-          // If the exact match does not exist, attempt to find the correct filename.
+    // If the exact match does not exist, attempt to find the correct filename.
     if (filenames.indexOf(filename) === -1) {
-            // Fallback value which triggers us to abort.
+      // Fallback value which triggers us to abort.
       let correctFilename = '!nonexistent';
 
       for (let i = 0; i < filenames.length; i += 1) {
@@ -98,10 +101,10 @@ CaseSensitivePathsPlugin.prototype.fileExistsWithCase = function (filepath, call
       return;
     }
 
-        // If exact match exists, recurse through directory tree until root.
+    // If exact match exists, recurse through directory tree until root.
     that.fileExistsWithCase(dir, (recurse) => {
-          // If found an error elsewhere, return that correct filename
-          // Don't bother caching - we're about to error out anyway.
+      // If found an error elsewhere, return that correct filename
+      // Don't bother caching - we're about to error out anyway.
       if (!recurse) {
         that.pathCache[dir] = filenames;
       }
@@ -118,8 +121,8 @@ CaseSensitivePathsPlugin.prototype.primeCache = function (callback) {
   }
 
   const that = this;
-    // Prime the cache with the current directory. We have to assume the current casing is correct,
-    // as in certain circumstances people can switch into an incorrectly-cased directory.
+  // Prime the cache with the current directory. We have to assume the current casing is correct,
+  // as in certain circumstances people can switch into an incorrectly-cased directory.
   const currentPath = path.resolve();
   that.getFilenamesInDir(currentPath, (files) => {
     that.pathCache[currentPath] = files;
@@ -129,39 +132,48 @@ CaseSensitivePathsPlugin.prototype.primeCache = function (callback) {
 };
 
 CaseSensitivePathsPlugin.prototype.apply = function (compiler) {
-  const that = this;
-
   this.compiler = compiler;
 
-  compiler.plugin('done', () => {
-    if (that.options.debug) {
-      console.log('[CaseSensitivePathsPlugin] Total filesystem reads:', that.fsOperations);
+  const onDone = () => {
+    if (this.options.debug) {
+      console.log('[CaseSensitivePathsPlugin] Total filesystem reads:', this.fsOperations);
     }
-    that.reset();
-  });
 
-  compiler.plugin('normal-module-factory', (nmf) => {
-    nmf.plugin('after-resolve', (data, done) => {
-      that.primeCache(() => {
-                // Trim ? off, since some loaders add that to the resource they're attemping to load
-        let pathName = data.resource.split('?')[0];
-        pathName = pathName.normalize ? pathName.normalize('NFC') : pathName;
+    this.reset();
+  };
 
-        that.fileExistsWithCase(pathName, (realName) => {
-          if (realName) {
-            if (realName === '!nonexistent') {
-                // If file does not exist, let Webpack show a more appropriate error.
-              done(null, data);
-            } else {
-              done(new Error(`[CaseSensitivePathsPlugin] \`${pathName}\` does not match the corresponding path on disk ${realName}`));
-            }
-          } else {
+  const onAfterResolve = (data, done) => {
+    this.primeCache(() => {
+      // Trim ? off, since some loaders add that to the resource they're attemping to load
+      let pathName = data.resource.split('?')[0];
+      pathName = pathName.normalize ? pathName.normalize('NFC') : pathName;
+
+      this.fileExistsWithCase(pathName, (realName) => {
+        if (realName) {
+          if (realName === '!nonexistent') {
+            // If file does not exist, let Webpack show a more appropriate error.
             done(null, data);
+          } else {
+            done(new Error(`[CaseSensitivePathsPlugin] \`${pathName}\` does not match the corresponding path on disk ${realName}`));
           }
-        });
+        } else {
+          done(null, data);
+        }
       });
     });
-  });
+  };
+
+  if (compiler.hooks) {
+    compiler.hooks.done.tap('CaseSensitivePathsPlugin', onDone);
+    compiler.hooks.normalModuleFactory.tap('CaseSensitivePathsPlugin', (nmf) => {
+      nmf.hooks.afterResolve.tapAsync('CaseSensitivePathsPlugin', onAfterResolve);
+    });
+  } else {
+    compiler.plugin('done', onDone);
+    compiler.plugin('normal-module-factory', (nmf) => {
+      nmf.plugin('after-resolve', onAfterResolve);
+    });
+  }
 };
 
 module.exports = CaseSensitivePathsPlugin;
