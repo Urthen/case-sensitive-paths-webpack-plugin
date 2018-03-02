@@ -9,6 +9,17 @@ os:
   - linux
   - osx
 
+env:
+  - WEBPACK_VERSION=1
+  - WEBPACK_VERSION=2
+  - WEBPACK_VERSION=3
+  - WEBPACK_VERSION=4
+
+install:
+  - npm install
+  - npm rm webpack
+  - npm install webpack@$WEBPACK_VERSION || true
+
 branches:
   only:
     - master
