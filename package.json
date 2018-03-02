@@ -2,7 +2,9 @@
   "name": "case-sensitive-paths-webpack-plugin",
   "version": "2.1.1",
   "description": "Enforces module path case sensitivity in Webpack",
-  "engines": { "node": ">4.0" },
+  "engines": {
+    "node": ">=4"
+  },
   "main": "index.js",
   "scripts": {
     "test": "mocha test/",
@@ -35,6 +37,6 @@
     "eslint-plugin-import": "^2.3.0",
     "fs-extra": "^2.1.2",
     "mocha": "^3.0.1",
-    "webpack": "^1.13.1"
+    "webpack": "^4.0.1"
   }
 }
