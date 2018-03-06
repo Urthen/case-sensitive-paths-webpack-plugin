@@ -117,8 +117,12 @@ describe('CaseSensitivePathsPlugin', () => {
     compiler.watch({}, (err, stats) => {
       if (err) done(err);
       compilationCount += 1;
+      console.log(compilationCount);
       if (compilationCount === 1) {
         const error = stats.toJson().errors[0];
+
+        console.log(stats.hasErrors(), stats.hasWarnings(), stats.toJson());
+        console.dir(stats.toJson());
 
         assert(stats.hasErrors());
         assert(error.indexOf('Cannot resolve') !== -1 || error.indexOf('Can\'t resolve') !== -1);
@@ -126,6 +130,9 @@ describe('CaseSensitivePathsPlugin', () => {
 
         fs.writeFileSync(testFile, 'module.exports = 0;');
       } else if (compilationCount === 2) {
+        console.log(stats.hasErrors(), stats.hasWarnings());
+        console.dir(stats.toJson());
+
         assert(fs.existsSync(testFile), 'Test file should exist');
         assert(!stats.hasErrors(), `Should have no errors, but has: \n${stats.toJson().errors}`);
         assert(!stats.hasWarnings());
