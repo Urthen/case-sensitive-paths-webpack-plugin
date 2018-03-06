@@ -1,4 +1,7 @@
 /* eslint-env mocha */
+/* eslint-disable strict */
+
+'use strict';
 
 const isPlatformCaseInsensitive = /^[win|darwin]/.test(process.platform);
 
