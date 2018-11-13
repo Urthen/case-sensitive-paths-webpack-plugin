@@ -29,6 +29,7 @@
  */
 
 const path = require('path');
+const { performance } = require('perf_hooks');
 
 function CaseSensitivePathsPlugin(options) {
   this.options = options || {};
@@ -176,6 +177,7 @@ CaseSensitivePathsPlugin.prototype.apply = function (compiler) {
       compiler.hooks.emit.tapAsync('CaseSensitivePathsPlugin', (compilation, callback) => {
         let resolvedFilesCount = 0;
         const errors = [];
+        performance.mark('useBeforeEmitHook-start');
         this.primeCache(() => {
           compilation.fileDependencies.forEach((filename) => {
             checkFile(filename, filename, (error) => {
@@ -187,6 +189,12 @@ CaseSensitivePathsPlugin.prototype.apply = function (compiler) {
                 if (errors.length) {
                   // Send all errors to webpack
                   compilation.errors.push(...errors);
+                }
+                if (this.options.debug) {
+                  performance.mark('useBeforeEmitHook-end');
+                  performance.measure('useBeforeEmitHook', 'useBeforeEmitHook-start', 'useBeforeEmitHook-end')
+                  const measures = performance.getEntriesByName('useBeforeEmitHook');
+                  console.log('[CaseSensitivePathsPlugin] Time taken in ms = ', measures[0].duration);
                 }
                 callback();
               }
