@@ -124,10 +124,10 @@ describe('CaseSensitivePathsPlugin', () => {
         resolved = true;
         watcher.close(done);
       } else {
-        throw Error('Did not detect error when folder was deleted. Try rerunning the test.');
+        done(Error('Did not detect error when folder was deleted. Try rerunning the test.'));
       }
     });
-  });
+  }).timeout(4000); // This sometimes times out.
 
   it('should handle the creation of a new file', (done) => {
     const compiler = webpackCompilerAtDir('file-creation');
