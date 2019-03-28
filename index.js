@@ -32,6 +32,7 @@ const path = require('path');
 
 function CaseSensitivePathsPlugin(options) {
   this.options = options || {};
+  this.logger = this.options.logger || console;
   this.reset();
 }
 
@@ -51,13 +52,13 @@ CaseSensitivePathsPlugin.prototype.getFilenamesInDir = function (dir, callback) 
     return;
   }
   if (this.options.debug) {
-    console.log('[CaseSensitivePathsPlugin] Reading directory', dir);
+    this.logger.log('[CaseSensitivePathsPlugin] Reading directory', dir);
   }
 
   fs.readdir(dir, (err, files) => {
     if (err) {
       if (that.options.debug) {
-        console.log('[CaseSensitivePathsPlugin] Failed to read directory', dir, err);
+        this.logger.log('[CaseSensitivePathsPlugin] Failed to read directory', dir, err);
       }
       callback([]);
       return;
@@ -136,7 +137,7 @@ CaseSensitivePathsPlugin.prototype.apply = function (compiler) {
 
   const onDone = () => {
     if (this.options.debug) {
-      console.log('[CaseSensitivePathsPlugin] Total filesystem reads:', this.fsOperations);
+      this.logger.log('[CaseSensitivePathsPlugin] Total filesystem reads:', this.fsOperations);
     }
 
     this.reset();
@@ -171,7 +172,7 @@ CaseSensitivePathsPlugin.prototype.apply = function (compiler) {
     compiler.hooks.done.tap('CaseSensitivePathsPlugin', onDone);
     if (this.options.useBeforeEmitHook) {
       if (this.options.debug) {
-        console.log('[CaseSensitivePathsPlugin] Using the hook for before emit.');
+        this.logger.log('[CaseSensitivePathsPlugin] Using the hook for before emit.');
       }
       compiler.hooks.emit.tapAsync('CaseSensitivePathsPlugin', (compilation, callback) => {
         let resolvedFilesCount = 0;
