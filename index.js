@@ -148,12 +148,12 @@ CaseSensitivePathsPlugin.prototype.apply = function (compiler) {
       if (realName) {
         if (realName === '!nonexistent') {
           // If file does not exist, let Webpack show a more appropriate error.
-          done(null);
+          if (data.createData) done(null); else done(null, data);
         } else {
           done(new Error(`[CaseSensitivePathsPlugin] \`${pathName}\` does not match the corresponding path on disk ${realName}`));
         }
       } else {
-        done(null);
+        if (data.createData) done(null); else done(null, data);
       }
     });
   };
@@ -161,7 +161,7 @@ CaseSensitivePathsPlugin.prototype.apply = function (compiler) {
   const onAfterResolve = (data, done) => {
     this.primeCache(() => {
       // Trim ? off, since some loaders add that to the resource they're attemping to load
-      let pathName = data.createData.resource.split('?')[0];
+      let pathName = (data.createData || data).resource.split('?')[0];
       pathName = pathName.normalize ? pathName.normalize('NFC') : pathName;
 
       checkFile(pathName, data, done);
