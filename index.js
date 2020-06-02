@@ -33,11 +33,12 @@ const path = require('path');
 function CaseSensitivePathsPlugin(options) {
   this.options = options || {};
   this.logger = this.options.logger || console;
+  this.pathCache = new Map();
   this.reset();
 }
 
 CaseSensitivePathsPlugin.prototype.reset = function() {
-  this.pathCache = {};
+  this.pathCache = new Map();
   this.fsOperations = 0;
   this.primed = false;
 };
@@ -47,8 +48,8 @@ CaseSensitivePathsPlugin.prototype.getFilenamesInDir = function(dir, callback) {
   const fs = this.compiler.inputFileSystem;
   this.fsOperations += 1;
 
-  if (Object.prototype.hasOwnProperty.call(this.pathCache, dir)) {
-    callback(this.pathCache[dir]);
+  if (this.pathCache.has(dir)) {
+    callback(this.pathCache.get(dir));
     return;
   }
   if (this.options.debug) {
@@ -89,7 +90,7 @@ CaseSensitivePathsPlugin.prototype.fileExistsWithCase = function(
   if (
     parsedPath.dir === parsedPath.root ||
     dir === '.' ||
-    Object.prototype.hasOwnProperty.call(that.pathCache, filepath)
+    that.pathCache.has(filepath)
   ) {
     callback();
     return;
@@ -118,7 +119,7 @@ CaseSensitivePathsPlugin.prototype.fileExistsWithCase = function(
       // If found an error elsewhere, return that correct filename
       // Don't bother caching - we're about to error out anyway.
       if (!recurse) {
-        that.pathCache[dir] = filenames;
+        that.pathCache.set(dir, filenames);
       }
 
       callback(recurse);
@@ -137,7 +138,7 @@ CaseSensitivePathsPlugin.prototype.primeCache = function(callback) {
   // as in certain circumstances people can switch into an incorrectly-cased directory.
   const currentPath = path.resolve();
   that.getFilenamesInDir(currentPath, (files) => {
-    that.pathCache[currentPath] = files;
+    that.pathCache.set(currentPath,files);
     that.primed = true;
     callback();
   });
