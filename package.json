@@ -9,7 +9,8 @@
   "scripts": {
     "test": "mocha test/",
     "lint": "eslint index.js",
-    "lintfix": "eslint --fix index.js"
+    "lintfix": "eslint --fix index.js",
+    "prettier": "prettier --write '**/*.js'"
   },
   "repository": {
     "type": "git",
@@ -37,6 +38,7 @@
     "eslint-plugin-import": "2.20.2",
     "fs-extra": "^2.1.2",
     "mocha": "7.2.0",
+    "prettier": "^2.0.5",
     "webpack": "5.0.0-beta.16"
   }
 }
