@@ -4,8 +4,8 @@ import ReactDOM from 'react-dom';
 
 const app = {
   initialize() {
-    ReactDOM.render(<AppRoot/>, document.getElementById('react-app-hook'));
-  }
+    ReactDOM.render(<AppRoot />, document.getElementById('react-app-hook'));
+  },
 };
 
 app.initialize();

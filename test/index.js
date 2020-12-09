@@ -124,71 +124,53 @@ describe('CaseSensitivePathsPlugin', () => {
     });
 
     // create folder and file to be deleted
-    const testFolder = path.join(
-      __dirname,
-      'fixtures',
-      'deleting-folder',
-      'test-folder',
-    );
+    const testFolder = path.join(__dirname, 'fixtures', 'deleting-folder', 'test-folder');
     const testFile = path.join(testFolder, 'testfile.js');
     if (!fs.existsSync(testFolder)) fs.mkdirSync(testFolder);
-    if (!fs.existsSync(testFile))
-      fs.writeFileSync(testFile, "module.exports = '';");
+    if (!fs.existsSync(testFile)) fs.writeFileSync(testFile, "module.exports = '';");
 
     let watchCount = 0;
     let resolved = false;
     let jsonStats;
-    const watcher = compiler.watch(
-      { poll: 500, aggregateTimeout: 500 },
-      (err, stats) => {
-        // We already detected the change and marked ourselves done, don't continue.
-        // Short circuits some intermittent test errors where this would be called again after
-        // test completion.
-        if (resolved) {
-          return;
-        }
+    const watcher = compiler.watch({ poll: 500, aggregateTimeout: 500 }, (err, stats) => {
+      // We already detected the change and marked ourselves done, don't continue.
+      // Short circuits some intermittent test errors where this would be called again after
+      // test completion.
+      if (resolved) {
+        return;
+      }
 
-        if (err) done(err);
-        watchCount += 1;
+      if (err) done(err);
+      watchCount += 1;
 
-        if (watchCount === 1) {
-          // First run should not error.
-          assert(!stats.hasErrors());
-          assert(!stats.hasWarnings());
+      if (watchCount === 1) {
+        // First run should not error.
+        assert(!stats.hasErrors());
+        assert(!stats.hasWarnings());
 
-          setTimeout(() => {
-            // after initial compile delete test folder
-            fs.unlinkSync(testFile);
-            fs.rmdirSync(testFolder);
-          }, 500);
-        } else if (stats.hasErrors()) {
-          assert(!stats.hasWarnings());
+        setTimeout(() => {
+          // after initial compile delete test folder
+          fs.unlinkSync(testFile);
+          fs.rmdirSync(testFolder);
+        }, 500);
+      } else if (stats.hasErrors()) {
+        assert(!stats.hasWarnings());
 
-          jsonStats = stats.toJson();
-          assert.equal(jsonStats.errors.length, 1);
+        jsonStats = stats.toJson();
+        assert.equal(jsonStats.errors.length, 1);
 
-          resolved = true;
-          watcher.close(done);
-        } else {
-          done(
-            Error(
-              'Did not detect error when folder was deleted. Try rerunning the test.',
-            ),
-          );
-        }
-      },
-    );
+        resolved = true;
+        watcher.close(done);
+      } else {
+        done(Error('Did not detect error when folder was deleted. Try rerunning the test.'));
+      }
+    });
   }).timeout(4000); // This sometimes times out.
 
   it('should handle the creation of a new file', (done) => {
     const compiler = webpackCompilerAtDir('file-creation');
 
-    const testFile = path.join(
-      __dirname,
-      'fixtures',
-      'file-creation',
-      'testfile.js',
-    );
+    const testFile = path.join(__dirname, 'fixtures', 'file-creation', 'testfile.js');
     if (fs.existsSync(testFile)) fs.unlinkSync(testFile);
 
     let compilationCount = 0;
@@ -204,19 +186,13 @@ describe('CaseSensitivePathsPlugin', () => {
         if (error.message) error = error.message;
 
         assert(stats.hasErrors());
-        assert(
-          error.indexOf('Cannot resolve') !== -1 ||
-            error.indexOf("Can't resolve") !== -1,
-        );
+        assert(error.indexOf('Cannot resolve') !== -1 || error.indexOf("Can't resolve") !== -1);
         assert(!stats.hasWarnings());
 
         fs.writeFileSync(testFile, 'module.exports = 0;');
       } else if (compilationCount === 2) {
         assert(fs.existsSync(testFile), 'Test file should exist');
-        assert(
-          !stats.hasErrors(),
-          `Should have no errors, but has: \n${stats.toJson().errors}`,
-        );
+        assert(!stats.hasErrors(), `Should have no errors, but has: \n${stats.toJson().errors}`);
         assert(!stats.hasWarnings());
 
         fs.unlinkSync(testFile);
@@ -249,7 +225,7 @@ describe('CaseSensitivePathsPlugin', () => {
               const onCompile = () => {
                 readdir = readdir || compiler.inputFileSystem.readdir;
                 // eslint-disable-next-line no-param-reassign
-                compiler.inputFileSystem.readdir = function(p, cb) {
+                compiler.inputFileSystem.readdir = function (p, cb) {
                   called = true;
                   fs.readdir(p, cb);
                 };
