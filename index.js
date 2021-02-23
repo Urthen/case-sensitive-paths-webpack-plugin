@@ -140,7 +140,8 @@ CaseSensitivePathsPlugin.prototype.fileExistsWithCase = function (
   if (
     parsedPath.dir === parsedPath.root
     || dir === '.'
-    || that.pathCache.has(filepath)
+    // TODO: alternative way to express "known good path"
+    // || that.pathCache.has(filepath)
   ) {
     callback();
     return;
