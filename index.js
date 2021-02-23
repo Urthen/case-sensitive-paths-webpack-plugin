@@ -37,13 +37,13 @@ function CaseSensitivePathsPlugin(options) {
   this.reset();
 }
 
-CaseSensitivePathsPlugin.prototype.reset = function() {
+CaseSensitivePathsPlugin.prototype.reset = function () {
   this.pathCache = new Map();
   this.fsOperations = 0;
   this.primed = false;
 };
 
-CaseSensitivePathsPlugin.prototype.getFilenamesInDir = function(dir, callback) {
+CaseSensitivePathsPlugin.prototype.getFilenamesInDir = function (dir, callback) {
   const that = this;
   const fs = this.compiler.inputFileSystem;
   this.fsOperations += 1;
@@ -76,7 +76,7 @@ CaseSensitivePathsPlugin.prototype.getFilenamesInDir = function(dir, callback) {
 // This function based on code found at http://stackoverflow.com/questions/27367261/check-if-file-exists-case-sensitive
 // By Patrick McElhaney (No license indicated - Stack Overflow Answer)
 // This version will return with the real name of any incorrectly-cased portion of the path, null otherwise.
-CaseSensitivePathsPlugin.prototype.fileExistsWithCase = function(
+CaseSensitivePathsPlugin.prototype.fileExistsWithCase = function (
   filepath,
   callback,
 ) {
@@ -88,9 +88,9 @@ CaseSensitivePathsPlugin.prototype.fileExistsWithCase = function(
 
   // If we are at the root, or have found a path we already know is good, return.
   if (
-    parsedPath.dir === parsedPath.root ||
-    dir === '.' ||
-    that.pathCache.has(filepath)
+    parsedPath.dir === parsedPath.root
+    || dir === '.'
+    || that.pathCache.has(filepath)
   ) {
     callback();
     return;
@@ -127,7 +127,7 @@ CaseSensitivePathsPlugin.prototype.fileExistsWithCase = function(
   });
 };
 
-CaseSensitivePathsPlugin.prototype.primeCache = function(callback) {
+CaseSensitivePathsPlugin.prototype.primeCache = function (callback) {
   if (this.primed) {
     callback();
     return;
@@ -138,13 +138,13 @@ CaseSensitivePathsPlugin.prototype.primeCache = function(callback) {
   // as in certain circumstances people can switch into an incorrectly-cased directory.
   const currentPath = path.resolve();
   that.getFilenamesInDir(currentPath, (files) => {
-    that.pathCache.set(currentPath,files);
+    that.pathCache.set(currentPath, files);
     that.primed = true;
     callback();
   });
 };
 
-CaseSensitivePathsPlugin.prototype.apply = function(compiler) {
+CaseSensitivePathsPlugin.prototype.apply = function (compiler) {
   this.compiler = compiler;
 
   const onDone = () => {
@@ -180,16 +180,14 @@ CaseSensitivePathsPlugin.prototype.apply = function(compiler) {
     });
   };
 
-  const cleanupPath = (resourcePath) => {
-      // Trim ? off, since some loaders add that to the resource they're attemping to load
-      return resourcePath.split('?')[0]
-        // replace escaped \0# with # see: https://github.com/webpack/enhanced-resolve#escaping
-        .replace('\u0000#', '#');
-  }
+  const cleanupPath = (resourcePath) => resourcePath
+    // Trim ? off, since some loaders add that to the resource they're attemping to load
+    .split('?')[0]
+    // replace escaped \0# with # see: https://github.com/webpack/enhanced-resolve#escaping
+    .replace('\u0000#', '#');
 
   const onAfterResolve = (data, done) => {
     this.primeCache(() => {
-      
       let pathName = cleanupPath((data.createData || data).resource);
       pathName = pathName.normalize ? pathName.normalize('NFC') : pathName;
 
