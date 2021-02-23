@@ -41,6 +41,9 @@
     "mocha": "8.3.0",
     "webpack": "5.23.0"
   },
+  "dependencies": {
+    "async-mutex": "0.3.1"
+  },
   "auto-changelog": {
     "commitLimit": false
   }

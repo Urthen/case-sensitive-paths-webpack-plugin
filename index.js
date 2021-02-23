@@ -29,54 +29,104 @@
  */
 
 const path = require('path');
+const { Mutex } = require('async-mutex');
 
 function CaseSensitivePathsPlugin(options) {
   this.options = options || {};
   this.logger = this.options.logger || console;
   this.pathCache = new Map();
+
+  // stores a mutex for each path
+  //
+  // The goal:
+  //    We use pathCache to store already known filenames for each directory.
+  //
+  //    We want getFilenamesInDir() only call fs.readdir() once,
+  //    and then use cached result for further calls on same directory.
+  //
+  // The culprit:
+  //    1. There's a new directory `tippy`, which is not in pathCache.
+  //    2. getFilenamesInDir() gets called with `tippy`
+  //          check pathCache: cache is empty
+  //          call fs.readdir()
+  //    3. getFilenamesInDir() gets called again with `tippy`:
+  //          check pathCache: cache is empty (previous call to fs.readdir() is not finished)
+  //          call fs.readdir()
+  //    4. Before cache for `tippy` is written, more calls to getFilenamesInDir() with `tippy`,
+  //          causes as much as calls to fs.readdir()
+  // Thus we have to put a mutex for path `tippy`, when cache is not ready,
+  // to ensure we do not call fs.readdir() on same path multiple times.
+  this.visitedPathMutexRecord = new Map();
   this.reset();
 }
 
-CaseSensitivePathsPlugin.prototype.reset = function() {
+CaseSensitivePathsPlugin.prototype.reset = function () {
   this.pathCache = new Map();
+  this.visitedPathMutexRecord.clear();
   this.fsOperations = 0;
-  this.primed = false;
 };
 
-CaseSensitivePathsPlugin.prototype.getFilenamesInDir = function(dir, callback) {
+CaseSensitivePathsPlugin.prototype.getFilenamesInDir = function (dir, callback) {
   const that = this;
   const fs = this.compiler.inputFileSystem;
-  this.fsOperations += 1;
+
+  if (!this.visitedPathMutexRecord.has(dir)) {
+    this.visitedPathMutexRecord.set(dir, new Mutex());
+  }
 
   if (this.pathCache.has(dir)) {
+    if (that.options.debug) {
+      that.logger.log(
+        '[CaseSensitivePathsPlugin] Hit cache for directory',
+        dir,
+      );
+    }
     callback(this.pathCache.get(dir));
     return;
   }
-  if (this.options.debug) {
-    this.logger.log('[CaseSensitivePathsPlugin] Reading directory', dir);
-  }
 
-  fs.readdir(dir, (err, files) => {
-    if (err) {
+  this.visitedPathMutexRecord.get(dir).runExclusive(() => {
+    if (that.pathCache.has(dir)) {
       if (that.options.debug) {
-        this.logger.log(
-          '[CaseSensitivePathsPlugin] Failed to read directory',
+        that.logger.log(
+          '[CaseSensitivePathsPlugin] Hit cache for directory',
           dir,
-          err,
         );
       }
-      callback([]);
-      return;
+      callback(that.pathCache.get(dir));
+      return undefined;
     }
 
-    callback(files.map((f) => (f.normalize ? f.normalize('NFC') : f)));
+    if (that.options.debug) {
+      that.logger.log('[CaseSensitivePathsPlugin] Reading directory', dir);
+    }
+    that.fsOperations += 1;
+    return new Promise((done) => fs.readdir(dir, (err, files) => {
+      if (err) {
+        if (that.options.debug) {
+          that.logger.log(
+            '[CaseSensitivePathsPlugin] Failed to read directory',
+            dir,
+            err,
+          );
+        }
+        that.pathCache.set(dir, []);
+        callback([]);
+        done();
+        return;
+      }
+      const fileNames = files.map((f) => f.normalize ? f.normalize('NFC') : f);
+      that.pathCache.set(dir, fileNames);
+      callback(fileNames);
+      done();
+    }));
   });
 };
 
 // This function based on code found at http://stackoverflow.com/questions/27367261/check-if-file-exists-case-sensitive
 // By Patrick McElhaney (No license indicated - Stack Overflow Answer)
 // This version will return with the real name of any incorrectly-cased portion of the path, null otherwise.
-CaseSensitivePathsPlugin.prototype.fileExistsWithCase = function(
+CaseSensitivePathsPlugin.prototype.fileExistsWithCase = function (
   filepath,
   callback,
 ) {
@@ -88,9 +138,10 @@ CaseSensitivePathsPlugin.prototype.fileExistsWithCase = function(
 
   // If we are at the root, or have found a path we already know is good, return.
   if (
-    parsedPath.dir === parsedPath.root ||
-    dir === '.' ||
-    that.pathCache.has(filepath)
+    parsedPath.dir === parsedPath.root
+    || dir === '.'
+    // TODO: alternative way to express "known good path"
+    // || that.pathCache.has(filepath)
   ) {
     callback();
     return;
@@ -118,33 +169,12 @@ CaseSensitivePathsPlugin.prototype.fileExistsWithCase = function(
     that.fileExistsWithCase(dir, (recurse) => {
       // If found an error elsewhere, return that correct filename
       // Don't bother caching - we're about to error out anyway.
-      if (!recurse) {
-        that.pathCache.set(dir, filenames);
-      }
-
       callback(recurse);
     });
   });
 };
 
-CaseSensitivePathsPlugin.prototype.primeCache = function(callback) {
-  if (this.primed) {
-    callback();
-    return;
-  }
-
-  const that = this;
-  // Prime the cache with the current directory. We have to assume the current casing is correct,
-  // as in certain circumstances people can switch into an incorrectly-cased directory.
-  const currentPath = path.resolve();
-  that.getFilenamesInDir(currentPath, (files) => {
-    that.pathCache.set(currentPath,files);
-    that.primed = true;
-    callback();
-  });
-};
-
-CaseSensitivePathsPlugin.prototype.apply = function(compiler) {
+CaseSensitivePathsPlugin.prototype.apply = function (compiler) {
   this.compiler = compiler;
 
   const onDone = () => {
@@ -180,21 +210,17 @@ CaseSensitivePathsPlugin.prototype.apply = function(compiler) {
     });
   };
 
-  const cleanupPath = (resourcePath) => {
-      // Trim ? off, since some loaders add that to the resource they're attemping to load
-      return resourcePath.split('?')[0]
-        // replace escaped \0# with # see: https://github.com/webpack/enhanced-resolve#escaping
-        .replace('\u0000#', '#');
-  }
+  const cleanupPath = (resourcePath) => resourcePath
+    // Trim ? off, since some loaders add that to the resource they're attemping to load
+    .split('?')[0]
+    // replace escaped \0# with # see: https://github.com/webpack/enhanced-resolve#escaping
+    .replace('\u0000#', '#');
 
   const onAfterResolve = (data, done) => {
-    this.primeCache(() => {
-      
-      let pathName = cleanupPath((data.createData || data).resource);
-      pathName = pathName.normalize ? pathName.normalize('NFC') : pathName;
+    let pathName = cleanupPath((data.createData || data).resource);
+    pathName = pathName.normalize ? pathName.normalize('NFC') : pathName;
 
-      checkFile(pathName, data, done);
-    });
+    checkFile(pathName, data, done);
   };
 
   if (compiler.hooks) {
@@ -210,21 +236,19 @@ CaseSensitivePathsPlugin.prototype.apply = function(compiler) {
         (compilation, callback) => {
           let resolvedFilesCount = 0;
           const errors = [];
-          this.primeCache(() => {
-            compilation.fileDependencies.forEach((filename) => {
-              checkFile(filename, filename, (error) => {
-                resolvedFilesCount += 1;
-                if (error) {
-                  errors.push(error);
+          compilation.fileDependencies.forEach((filename) => {
+            checkFile(filename, filename, (error) => {
+              resolvedFilesCount += 1;
+              if (error) {
+                errors.push(error);
+              }
+              if (resolvedFilesCount === compilation.fileDependencies.size) {
+                if (errors.length) {
+                  // Send all errors to webpack
+                  Array.prototype.push.apply(compilation.errors, errors);
                 }
-                if (resolvedFilesCount === compilation.fileDependencies.size) {
-                  if (errors.length) {
-                    // Send all errors to webpack
-                    Array.prototype.push.apply(compilation.errors, errors);
-                  }
-                  callback();
-                }
-              });
+                callback();
+              }
             });
           });
         },
