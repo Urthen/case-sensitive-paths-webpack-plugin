@@ -163,8 +163,8 @@ CaseSensitivePathsPlugin.prototype.apply = function(compiler) {
       if (realName) {
         if (realName === '!nonexistent') {
           // If file does not exist, let Webpack show a more appropriate error.
-          if (data.createData) done(null);
-          else done(null, data);
+          if (data.createData) done(null, false);
+          else done();
         } else {
           done(
             new Error(
@@ -173,9 +173,9 @@ CaseSensitivePathsPlugin.prototype.apply = function(compiler) {
           );
         }
       } else if (data.createData) {
-        done(null);
+        done(null, false);
       } else {
-        done(null, data);
+        done();
       }
     });
   };
