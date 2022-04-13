@@ -29,6 +29,7 @@
  */
 
 const path = require('path');
+const fs = require('fs');
 
 function CaseSensitivePathsPlugin(options) {
   this.options = options || {};
@@ -145,6 +146,13 @@ CaseSensitivePathsPlugin.prototype.primeCache = function(callback) {
 };
 
 CaseSensitivePathsPlugin.prototype.apply = function(compiler) {
+  if (!fs.existsSync(path.join(path.dirname(__filename), path.basename(__filename).toUpperCase()))) {
+    if (this.options.debug) {
+      this.logger.log('[CaseSensitivePathsPlugin] Skip on case sensitive file system.');
+    }
+    return;
+  }
+
   this.compiler = compiler;
 
   const onDone = () => {
