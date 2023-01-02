@@ -17,7 +17,7 @@
     "@babel/core": "7.12.17",
     "@babel/preset-env": "7.12.17",
     "@babel/preset-react": "7.12.13",
-    "babel-loader": "8.2.2",
+    "babel-loader": "8.3.0",
     "html-webpack-plugin": "5.2.0",
     "jasmine": "3.6.4",
     "jasmine-core": "3.6.0",
